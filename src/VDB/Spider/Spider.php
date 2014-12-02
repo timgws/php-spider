@@ -357,57 +357,63 @@ class Spider
                 continue;
             }
 
-            $this->dispatch(
-                SpiderEvents::SPIDER_CRAWL_FILTER_POSTFETCH,
-                new GenericEvent($this, array('document' => $resource))
-            );
+            $this->processResource($resource);
+        }
+    }
 
-            if ($this->matchesPostfetchFilter($resource)) {
-                $this->getStatsHandler()->addToFiltered($resource);
+    private function processResource($resource)
+    {
+        $this->dispatch(
+            SpiderEvents::SPIDER_CRAWL_FILTER_POSTFETCH,
+            new GenericEvent($this, array('document' => $resource))
+        );
+
+        if ($this->matchesPostfetchFilter($resource)) {
+            $this->getStatsHandler()->addToFiltered($resource);
+            continue;
+        }
+
+        // The document was not filtered, so we add it to the processing queue
+        $this->dispatch(
+            SpiderEvents::SPIDER_CRAWL_PRE_ENQUEUE,
+            new GenericEvent($this, array('document' => $resource))
+        );
+
+        $this->addToProcessQueue($resource);
+
+        $nextLevel = $this->alreadySeenUris[$currentUri->toString()] + 1;
+        if ($nextLevel > $this->maxDepth) {
+            continue;
+        }
+
+        // Once the document is enqueued, apply the discoverers to look for more links to follow
+        $discoveredUris = $this->executeDiscoverers($resource);
+
+        foreach ($discoveredUris as $uri) {
+            // normalize the URI
+            $uri->normalize();
+
+            // Decorate the link to make it filterable
+            $uri = new FilterableUri($uri);
+
+            // Always skip nodes we already visited
+            if (array_key_exists($uri->toString(), $this->alreadySeenUris)) {
                 continue;
             }
 
-            // The document was not filtered, so we add it to the processing queue
             $this->dispatch(
-                SpiderEvents::SPIDER_CRAWL_PRE_ENQUEUE,
-                new GenericEvent($this, array('document' => $resource))
+                SpiderEvents::SPIDER_CRAWL_FILTER_PREFETCH,
+                new GenericEvent($this, array('uri' => $uri))
             );
 
-            $this->addToProcessQueue($resource);
-
-            $nextLevel = $this->alreadySeenUris[$currentUri->toString()] + 1;
-            if ($nextLevel > $this->maxDepth) {
-                continue;
+            if ($this->matchesPrefetchFilter($uri)) {
+                $this->getStatsHandler()->addToFiltered($uri);
+            } else {
+                // The URI was not matched by any filter, mark as visited and add to queue
+                array_push($this->traversalQueue, $uri);
             }
 
-            // Once the document is enqueued, apply the discoverers to look for more links to follow
-            $discoveredUris = $this->executeDiscoverers($resource);
-
-            foreach ($discoveredUris as $uri) {
-                // normalize the URI
-                $uri->normalize();
-
-                // Decorate the link to make it filterable
-                $uri = new FilterableUri($uri);
-
-                // Always skip nodes we already visited
-                if (array_key_exists($uri->toString(), $this->alreadySeenUris)) {
-                    continue;
-                }
-
-                $this->dispatch(
-                    SpiderEvents::SPIDER_CRAWL_FILTER_PREFETCH,
-                    new GenericEvent($this, array('uri' => $uri))
-                );
-
-                if ($this->matchesPrefetchFilter($uri)) {
-                    $this->getStatsHandler()->addToFiltered($uri);
-                } else {
-                    // The URI was not matched by any filter, mark as visited and add to queue
-                    array_push($this->traversalQueue, $uri);
-                }
-                $this->alreadySeenUris[$uri->toString()] = $nextLevel;
-            }
+            $this->alreadySeenUris[$uri->toString()] = $nextLevel;
         }
     }
 

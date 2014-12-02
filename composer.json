@@ -24,7 +24,8 @@
         "symfony/dom-crawler": "~2.1",
         "symfony/finder": "2.2.*@dev",
         "vdb/uri": "dev-master",
-        "react/react": "0.3.*"
+        "react/react": "0.3.*",
+        "timgws/rolling-curl": "dev-master"
     },
     "require-dev": {
         "monolog/monolog": "1.4.*@dev",
@@ -36,5 +37,11 @@
             "VDB\\Spider\\Tests": "tests/"
         }
     },
-    "minimum-stability": "dev"
+    "minimum-stability": "dev",
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/timgws/rolling-curl"
+        }
+    ]
 }

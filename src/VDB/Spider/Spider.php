@@ -2,6 +2,8 @@
 namespace VDB\Spider;
 
 use Exception;
+use RollingCurl\Request;
+use RollingCurl\RollingCurl;
 use Guzzle\Http\Message\Response;
 use Guzzle\Http\Url;
 use Guzzle\Parser\ParserRegistry;
@@ -361,7 +363,12 @@ class Spider
         }
     }
 
-    private function processResource($resource)
+    /**
+     * Look at a URL that was fetched from doCrawl.
+     *
+     * @params Resource $resource the resource to process
+     */
+    private function processResource(Resource $resource)
     {
         $this->dispatch(
             SpiderEvents::SPIDER_CRAWL_FILTER_POSTFETCH,
@@ -370,7 +377,7 @@ class Spider
 
         if ($this->matchesPostfetchFilter($resource)) {
             $this->getStatsHandler()->addToFiltered($resource);
-            continue;
+            return false;
         }
 
         // The document was not filtered, so we add it to the processing queue
@@ -383,7 +390,7 @@ class Spider
 
         $nextLevel = $this->alreadySeenUris[$currentUri->toString()] + 1;
         if ($nextLevel > $this->maxDepth) {
-            continue;
+            return false;
         }
 
         // Once the document is enqueued, apply the discoverers to look for more links to follow
@@ -415,12 +422,15 @@ class Spider
 
             $this->alreadySeenUris[$uri->toString()] = $nextLevel;
         }
+
+        return true;
     }
 
     /**
      * Add a Resource to the processing queue
      *
-     * @param Resource $resource
+     * @param Resource $resource a resource that is to be added to the queue
+     * @throws QueueException Maximum size of queue was hit
      * @return void
      */
     protected function addToProcessQueue(Resource $resource)
@@ -438,7 +448,7 @@ class Spider
 
     /**
      * @param Resource $resource
-     * @return Uri[]
+     * @return array Resource
      */
     protected function executeDiscoverers(Resource $resource)
     {

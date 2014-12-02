@@ -49,4 +49,13 @@ class GuzzleRequestHandler implements RequestHandler
         $response = $this->getClient()->createRequest(RequestInterface::GET, $uri->toString())->send();
         return new Resource($uri, $response);
     }
+
+    /**
+     * @return bool should we send multiple URLs to the request handler at a time?
+     */
+    public function getDepletesPool() {
+        return false;
+    }
+
+
 }
